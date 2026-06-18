@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Head from 'next/head'
-import dynamic from 'next/dynamic'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js'
-import { Bar, Line } from 'react-chartjs-2'
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler)
+
+const fmtRSD = (v) => {
+  if (!v) return '0 RSD'
+  if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M RSD'
+  if (v >= 1000) return Math.round(v / 1000) + 'k RSD'
+  return Math.round(v) + ' RSD'
+}
 
 const PERIODS = [
   { key: '1d', label: 'Danas' },
@@ -13,38 +16,29 @@ const PERIODS = [
   { key: '12m', label: 'Godina' },
 ]
 
-const fmtRSD = (v) => {
-  if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M RSD'
-  if (v >= 1000) return Math.round(v / 1000) + 'k RSD'
-  return Math.round(v) + ' RSD'
-}
-
 export default function Home() {
   const [tab, setTab] = useState('prodaja')
   const [period, setPeriod] = useState('7d')
   const [sales, setSales] = useState(null)
-  const [salesLoading, setSalesLoading] = useState(true)
-  const [salesError, setSalesError] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [toys, setToys] = useState(null)
   const [toysLoading, setToysLoading] = useState(false)
   const [fbSugg, setFbSugg] = useState(null)
   const [fbLoading, setFbLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchSales = useCallback(async (p) => {
-    setSalesLoading(true)
-    setSalesError(null)
+    setLoading(true)
+    setError(null)
     try {
-      const res = await fetch(`/api/sales?period=${p}`)
-      if (!res.ok) throw new Error('Greška pri učitavanju podataka')
+      const res = await fetch('/api/sales?period=' + p)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setSales(data)
-      setLastUpdated(new Date())
     } catch (e) {
-      setSalesError(e.message)
+      setError(e.message)
     } finally {
-      setSalesLoading(false)
+      setLoading(false)
     }
   }, [])
 
@@ -54,204 +48,152 @@ export default function Home() {
       const res = await fetch('/api/toys')
       const data = await res.json()
       setToys(data)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setToysLoading(false)
-    }
+    } catch (e) {}
+    setToysLoading(false)
   }, [])
 
-  const fetchFbSugg = useCallback(async () => {
+  const fetchFb = useCallback(async () => {
     setFbLoading(true)
     try {
-      const body = sales ? {
-        revenue: sales.totalRevenue,
-        topProduct: sales.topProducts?.[0]?.name,
-        orders: sales.totalOrders,
-        growth: sales.growth
-      } : {}
-      const res = await fetch('/api/fb-suggestions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      })
+      const body = sales ? { revenue: sales.totalRevenue, topProduct: sales.topProducts?.[0]?.name, orders: sales.totalOrders, growth: sales.growth } : {}
+      const res = await fetch('/api/fb-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json()
       setFbSugg(data.suggestions)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setFbLoading(false)
-    }
+    } catch (e) {}
+    setFbLoading(false)
   }, [sales])
 
   useEffect(() => { fetchSales(period) }, [period, fetchSales])
-
   useEffect(() => {
     if (tab === 'igracke' && !toys) fetchToys()
-    if (tab === 'facebook' && !fbSugg) fetchFbSugg()
+    if (tab === 'facebook' && !fbSugg) fetchFb()
   }, [tab])
 
-  const chartOpts = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: {
-      label: (ctx) => ctx.dataset.label + ': ' + (ctx.dataset.yAxisID === 'y1'
-        ? ctx.raw + ' narudžbina'
-        : fmtRSD(ctx.raw))
-    }}},
-    scales: {
-      x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 30 }},
-      y: { position: 'left', grid: { color: 'rgba(0,0,0,0.05)' },
-           ticks: { font: { size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v }},
-      y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { font: { size: 10 }}}
-    }
+  const s = {
+    app: { fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', maxWidth: 480, margin: '0 auto', background: '#f5f5f7', minHeight: '100vh', paddingBottom: 80 },
+    header: { background: '#fff', padding: '16px 20px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '0.5px solid rgba(0,0,0,0.1)', position: 'sticky', top: 0, zIndex: 100 },
+    logo: { width: 40, height: 40, background: '#E6F1FB', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '0.5px solid #B5D4F4', flexShrink: 0 },
+    title: { fontSize: 17, fontWeight: 600, color: '#1a1a1a' },
+    sub: { fontSize: 11, color: '#888', marginTop: 1 },
+    live: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, background: '#EAF3DE', color: '#3B6D11', borderRadius: 20, padding: '4px 10px', fontWeight: 500, marginLeft: 'auto' },
+    dot: { width: 6, height: 6, borderRadius: '50%', background: '#639922' },
+    content: { padding: 16 },
+    tabs: { display: 'flex', borderBottom: '1px solid #e0e0e0', marginBottom: 16 },
+    tab: (active) => ({ flex: 1, padding: '10px 4px', fontSize: 12, fontWeight: 500, border: 'none', background: 'none', color: active ? '#185FA5' : '#888', borderBottom: active ? '2px solid #185FA5' : '2px solid transparent', cursor: 'pointer' }),
+    metrics: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
+    metric: { background: '#fff', borderRadius: 14, padding: 14, border: '0.5px solid rgba(0,0,0,0.07)' },
+    mLabel: { fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 500, textTransform: 'uppercase' },
+    mVal: { fontSize: 22, fontWeight: 700, color: '#1a1a1a' },
+    mSub: (color) => ({ fontSize: 11, marginTop: 4, color: color || '#888', fontWeight: 500 }),
+    card: { background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, border: '0.5px solid rgba(0,0,0,0.07)' },
+    cardTitle: { fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 12 },
+    periods: { display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto' },
+    pbtn: (active) => ({ padding: '6px 14px', fontSize: 12, fontWeight: 500, border: active ? 'none' : '1px solid rgba(0,0,0,0.12)', borderRadius: 20, cursor: 'pointer', background: active ? '#185FA5' : '#fff', color: active ? '#fff' : '#555', whiteSpace: 'nowrap', flexShrink: 0 }),
+    prodRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '0.5px solid rgba(0,0,0,0.06)' },
+    prodName: { fontSize: 13, fontWeight: 500, color: '#1a1a1a', marginBottom: 2 },
+    prodOrders: { fontSize: 11, color: '#888' },
+    prodRev: { fontSize: 14, fontWeight: 600, color: '#185FA5' },
+    badge: (type) => ({ display: 'inline-block', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: type === 'blue' ? '#E6F1FB' : type === 'green' ? '#EAF3DE' : '#FAEEDA', color: type === 'blue' ? '#185FA5' : type === 'green' ? '#3B6D11' : '#854F0B' }),
+    toyCard: { background: '#f8f9fa', borderRadius: 14, padding: 14, marginBottom: 10, border: '0.5px solid rgba(0,0,0,0.07)' },
+    sugg: (p) => ({ borderLeft: `3px solid ${p === 'visok' ? '#E24B4A' : p === 'srednji' ? '#EF9F27' : '#639922'}`, background: '#fff', border: '0.5px solid rgba(0,0,0,0.07)', borderRadius: '0 12px 12px 0', padding: '12px 14px', marginBottom: 8 }),
+    suggHead: { fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 },
+    suggBody: { fontSize: 12, color: '#555', lineHeight: 1.5 },
+    nav: { position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: 'rgba(255,255,255,0.95)', borderTop: '0.5px solid rgba(0,0,0,0.1)', display: 'flex', padding: '8px 0', zIndex: 200 },
+    navItem: (active) => ({ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer', background: 'none', border: 'none', color: active ? '#185FA5' : '#999', fontSize: 10, fontWeight: 500 }),
+    loading: { textAlign: 'center', padding: 30, color: '#888', fontSize: 13 },
+    error: { background: '#FCEBEB', borderRadius: 12, padding: 14, fontSize: 13, color: '#A32D2D', textAlign: 'center' },
+    proj: { background: '#E6F1FB', border: '0.5px solid #85B7EB', borderRadius: 14, padding: '14px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 },
+    adLink: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, background: '#185FA5', color: '#fff', borderRadius: 14, fontSize: 14, fontWeight: 600, textDecoration: 'none', marginTop: 4 },
   }
 
-  const salesChartData = sales ? {
-    labels: sales.chartData.labels,
-    datasets: [
-      {
-        label: 'Prihod',
-        data: sales.chartData.revenue,
-        backgroundColor: 'rgba(55,138,221,0.18)',
-        borderColor: '#378ADD',
-        borderWidth: 1.5,
-        borderRadius: 4,
-        yAxisID: 'y',
-        type: 'bar'
-      },
-      {
-        label: 'Narudžbine',
-        data: sales.chartData.orders,
-        borderColor: '#1D9E75',
-        backgroundColor: 'rgba(29,158,117,0.06)',
-        borderWidth: 2,
-        pointRadius: 3,
-        fill: true,
-        tension: 0.4,
-        borderDash: [4, 3],
-        yAxisID: 'y1',
-        type: 'line'
-      }
-    ]
-  } : null
-
-  const projJul = sales ? Math.round(sales.totalRevenue * 1.14) : null
+  const navItems = [
+    { key: 'prodaja', label: 'Prodaja', icon: '📊' },
+    { key: 'igracke', label: 'Igračke', icon: '🎁' },
+    { key: 'facebook', label: 'Facebook', icon: '📘' },
+    { key: 'adlib', label: 'Ad Library', icon: '📢' },
+  ]
 
   return (
     <>
       <Head>
-        <title>Naše Dete — Dashboard</title>
+        <title>Naše Dete</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#185FA5" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Naše Dete" />
       </Head>
-
-      <div className="app">
-        <div className="header">
-          <div className="header-logo">🍼</div>
-          <div className="header-info">
-            <div className="header-title">Naše Dete</div>
-            <div className="header-sub">
-              nasedete.com · {lastUpdated ? lastUpdated.toLocaleTimeString('sr-RS', { hour: '2-digit', minute: '2-digit' }) : '...'}
-            </div>
+      <div style={s.app}>
+        <div style={s.header}>
+          <div style={s.logo}>🍼</div>
+          <div>
+            <div style={s.title}>Naše Dete</div>
+            <div style={s.sub}>nasedete.com</div>
           </div>
-          <div className="live-badge">
-            <div className="live-dot" />
-            Uživo
-          </div>
+          <div style={s.live}><div style={s.dot} />Uživo</div>
         </div>
 
-        <div className="content">
+        <div style={s.content}>
+          <div style={s.tabs}>
+            {navItems.map(n => (
+              <button key={n.key} style={s.tab(tab === n.key)} onClick={() => setTab(n.key)}>
+                {n.icon} {n.label}
+              </button>
+            ))}
+          </div>
 
           {tab === 'prodaja' && (
             <>
-              {salesLoading ? (
-                <div className="loading">
-                  <i className="ti ti-loader spin" /> Učitavam podatke...
-                </div>
-              ) : salesError ? (
-                <div className="error-box">
-                  <i className="ti ti-alert-circle" style={{ fontSize: 20, marginBottom: 6, display: 'block' }} />
-                  {salesError}
-                  <br />
-                  <button className="refresh-btn" style={{ margin: '10px auto 0' }} onClick={() => fetchSales(period)}>
-                    Pokušaj ponovo
-                  </button>
-                </div>
-              ) : sales && (
+              {loading ? <div style={s.loading}>Učitavam podatke...</div>
+              : error ? <div style={s.error}>{error}<br /><button onClick={() => fetchSales(period)} style={{ marginTop: 10, padding: '8px 16px', cursor: 'pointer' }}>Pokušaj ponovo</button></div>
+              : sales && (
                 <>
-                  <div className="metrics">
-                    <div className="metric-card">
-                      <div className="metric-label">Prihod</div>
-                      <div className="metric-value">{fmtRSD(sales.totalRevenue)}</div>
-                      {sales.growth !== null && (
-                        <div className={`metric-sub ${sales.growth >= 0 ? 'up' : 'down'}`}>
-                          <i className={`ti ti-trending-${sales.growth >= 0 ? 'up' : 'down'}`} style={{ fontSize: 10 }} />{' '}
-                          {sales.growth >= 0 ? '+' : ''}{sales.growth}% vs prethodni period
-                        </div>
-                      )}
+                  <div style={s.metrics}>
+                    <div style={s.metric}>
+                      <div style={s.mLabel}>Prihod</div>
+                      <div style={s.mVal}>{fmtRSD(sales.totalRevenue)}</div>
+                      {sales.growth !== null && <div style={s.mSub(sales.growth >= 0 ? '#3B6D11' : '#A32D2D')}>{sales.growth >= 0 ? '+' : ''}{sales.growth}% vs prethodni</div>}
                     </div>
-                    <div className="metric-card">
-                      <div className="metric-label">Narudžbine</div>
-                      <div className="metric-value">{sales.totalOrders}</div>
-                      <div className="metric-sub neutral">
-                        Prosek: {fmtRSD(sales.avgOrderValue)}
-                      </div>
+                    <div style={s.metric}>
+                      <div style={s.mLabel}>Narudžbine</div>
+                      <div style={s.mVal}>{sales.totalOrders}</div>
+                      <div style={s.mSub()}>Prosek: {fmtRSD(sales.avgOrderValue)}</div>
                     </div>
                   </div>
 
-                  {projJul && (
-                    <div className="proj-box">
-                      <i className="ti ti-calendar-stats" style={{ fontSize: 26, color: '#185FA5', flexShrink: 0 }} />
-                      <div>
-                        <div className="proj-label">Projekcija za jul 2026</div>
-                        <div className="proj-val">{fmtRSD(projJul)}</div>
-                        <div className="proj-note">+14% mesečni rast · letnji vrhunac</div>
-                      </div>
+                  <div style={s.proj}>
+                    <div style={{ fontSize: 28 }}>📈</div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#185FA5', fontWeight: 500 }}>Projekcija za jul 2026</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#0C447C' }}>{fmtRSD(Math.round((sales.totalRevenue || 0) * 1.14))}</div>
+                      <div style={{ fontSize: 11, color: '#378ADD' }}>+14% mesečni rast · letnji vrhunac</div>
                     </div>
-                  )}
+                  </div>
 
-                  <div className="section-card">
-                    <div className="period-row">
+                  <div style={s.card}>
+                    <div style={s.periods}>
                       {PERIODS.map(p => (
-                        <button
-                          key={p.key}
-                          className={`period-btn ${period === p.key ? 'active' : ''}`}
-                          onClick={() => setPeriod(p.key)}
-                        >
-                          {p.label}
-                        </button>
+                        <button key={p.key} style={s.pbtn(period === p.key)} onClick={() => setPeriod(p.key)}>{p.label}</button>
                       ))}
                     </div>
-                    <div className="legend">
-                      <span><span className="legend-dot" style={{ background: '#378ADD' }} />Prihod</span>
-                      <span><span className="legend-dot" style={{ background: '#1D9E75', outline: '1px dashed #1D9E75' }} />Narudžbine</span>
-                    </div>
-                    <div className="chart-wrap">
-                      {salesChartData && <Bar data={salesChartData} options={chartOpts} />}
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#888', fontSize: 13 }}>
+                      Period: {PERIODS.find(p => p.key === period)?.label} · {sales.totalOrders} narudžbina
                     </div>
                   </div>
 
-                  {sales.topProducts?.length > 0 && (
-                    <div className="section-card">
-                      <div className="section-title">
-                        <i className="ti ti-trophy" style={{ fontSize: 15, color: '#BA7517' }} />
-                        Top proizvodi
-                      </div>
-                      {sales.topProducts.map((p, i) => (
-                        <div className="prod-row" key={i}>
-                          <div>
-                            <div className="prod-name">{p.name || '(neidentifikovano)'}</div>
-                            <div className="prod-orders">{p.orders} narudžbina · {' '}
-                              <span className={`badge ${i === 0 ? 'badge-blue' : i < 3 ? 'badge-green' : 'badge-amber'}`}>
-                                {i === 0 ? 'Bestseler' : i < 3 ? 'Rast' : 'Srednji'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="prod-rev">{fmtRSD(p.revenue)}</div>
+                  <div style={s.card}>
+                    <div style={s.cardTitle}>🏆 Top proizvodi</div>
+                    {sales.topProducts?.map((p, i) => (
+                      <div key={i} style={s.prodRow}>
+                        <div>
+                          <div style={s.prodName}>{p.name || '(neidentifikovano)'}</div>
+                          <div style={s.prodOrders}>{p.orders} narudžbina · <span style={s.badge(i === 0 ? 'blue' : i < 3 ? 'green' : 'amber')}>{i === 0 ? 'Bestseler' : i < 3 ? 'Rast' : 'Srednji'}</span></div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <div style={s.prodRev}>{fmtRSD(p.revenue)}</div>
+                      </div>
+                    ))}
+                  </div>
                 </>
               )}
             </>
@@ -261,106 +203,62 @@ export default function Home() {
             <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Preporuke za danas</div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>AI · dostupne u Srbiji</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>Preporuke za danas</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>AI · dostupne u Srbiji</div>
                 </div>
-                <button className="refresh-btn" onClick={fetchToys} disabled={toysLoading}>
-                  <i className={`ti ti-refresh ${toysLoading ? 'spin' : ''}`} style={{ fontSize: 14 }} />
-                  Osveži
-                </button>
+                <button style={s.pbtn(false)} onClick={fetchToys}>Osveži</button>
               </div>
-
-              {toysLoading ? (
-                <div className="loading"><i className="ti ti-loader spin" /> Generišem AI preporuke...</div>
-              ) : toys?.toys?.length > 0 ? (
-                toys.toys.map((t, i) => (
-                  <div className="toy-card" key={i}>
-                    <div className="toy-top">
-                      <div style={{ fontSize: 36 }}>{t.emoji}</div>
-                      <span className={`badge badge-${t.badgeType || 'blue'}`}>{t.badge}</span>
-                    </div>
-                    <div className="toy-name">{t.name}</div>
-                    <div className="toy-meta">{t.where} · {t.ageGroup}</div>
-                    <div className="toy-price">
-                      {t.priceMin?.toLocaleString('sr-RS')} – {t.priceMax?.toLocaleString('sr-RS')} RSD
-                    </div>
-                    <div className="toy-why">{t.why}</div>
+              {toysLoading ? <div style={s.loading}>Generišem AI preporuke...</div>
+              : toys?.toys?.length > 0 ? toys.toys.map((t, i) => (
+                <div key={i} style={s.toyCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 36 }}>{t.emoji}</div>
+                    <span style={s.badge(t.badgeType || 'blue')}>{t.badge}</span>
                   </div>
-                ))
-              ) : (
-                <button className="refresh-btn" onClick={fetchToys} style={{ width: '100%', justifyContent: 'center', padding: 14 }}>
-                  <i className="ti ti-sparkles" style={{ fontSize: 16 }} /> Generiši preporuke
-                </button>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{t.name}</div>
+                  <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>{t.where} · {t.ageGroup}</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: '#185FA5' }}>{t.priceMin?.toLocaleString('sr-RS')} – {t.priceMax?.toLocaleString('sr-RS')} RSD</div>
+                  <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>{t.why}</div>
+                </div>
+              )) : (
+                <button style={{ ...s.pbtn(true), width: '100%', padding: 14, justifyContent: 'center' }} onClick={fetchToys}>Generiši preporuke</button>
               )}
 
-              <div className="market-grid" style={{ marginTop: 4 }}>
-                <div className="market-box">
-                  <div className="market-title">
-                    <i className="ti ti-world" style={{ fontSize: 13, color: '#378ADD' }} /> Strano tržište
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
+                {[
+                  { title: '🌍 Strano tržište', items: [{ name: 'LEGO Technic 2025', val: '+34%' }, { name: 'Nerf Elite Pro', val: '+28%' }, { name: 'Barbie Cutie Reveal', val: '+21%' }] },
+                  { title: '🇷🇸 Domaće tržište', items: [{ name: 'Vodena podloga 3u1', val: '607 kom' }, { name: 'Kraba Šetalica', val: '19 kom' }, { name: 'Veselo Pače 3u1', val: '14 kom' }] }
+                ].map((box, bi) => (
+                  <div key={bi} style={{ background: '#fff', borderRadius: 14, padding: 12, border: '0.5px solid rgba(0,0,0,0.07)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 10 }}>{box.title}</div>
+                    {box.items.map((item, ii) => (
+                      <div key={ii} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0', borderBottom: ii < 2 ? '0.5px solid rgba(0,0,0,0.05)' : 'none' }}>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, flexShrink: 0 }}>{ii + 1}</div>
+                        <div style={{ fontSize: 11, flex: 1 }}>{item.name}</div>
+                        <span style={s.badge('green')}>{item.val}</span>
+                      </div>
+                    ))}
                   </div>
-                  {[
-                    { name: 'LEGO Technic 2025', val: '+34%', cls: 'badge-blue' },
-                    { name: 'Nerf Elite Pro', val: '+28%', cls: 'badge-blue' },
-                    { name: 'Barbie Cutie Reveal', val: '+21%', cls: 'badge-blue' },
-                  ].map((m, i) => (
-                    <div className="mitem" key={i}>
-                      <div className="mitem-rank">{i + 1}</div>
-                      <div className="mitem-name">{m.name}</div>
-                      <span className={`badge ${m.cls}`} style={{ fontSize: 10 }}>{m.val}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="market-box">
-                  <div className="market-title">
-                    <i className="ti ti-map-pin" style={{ fontSize: 13, color: '#1D9E75' }} /> Domaće tržište
-                  </div>
-                  {[
-                    { name: 'Vodena podloga 3u1', val: '607 kom', cls: 'badge-green' },
-                    { name: 'Kraba Šetalica', val: '19 kom', cls: 'badge-green' },
-                    { name: 'Veselo Pače 3u1', val: '14 kom', cls: 'badge-green' },
-                  ].map((m, i) => (
-                    <div className="mitem" key={i}>
-                      <div className="mitem-rank">{i + 1}</div>
-                      <div className="mitem-name">{m.name}</div>
-                      <span className={`badge ${m.cls}`} style={{ fontSize: 10 }}>{m.val}</span>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </>
           )}
 
           {tab === 'facebook' && (
             <>
-              <div className="section-card" style={{ marginBottom: 12 }}>
-                <div className="section-title">
-                  <i className="ti ti-bulb" style={{ fontSize: 15, color: '#BA7517' }} />
-                  AI preporuke za reklame
-                  <button className="refresh-btn" style={{ marginLeft: 'auto', fontSize: 11 }} onClick={fetchFbSugg} disabled={fbLoading}>
-                    <i className={`ti ti-refresh ${fbLoading ? 'spin' : ''}`} style={{ fontSize: 12 }} /> Osveži
-                  </button>
+              <div style={s.card}>
+                <div style={{ ...s.cardTitle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  💡 AI preporuke za reklame
+                  <button style={s.pbtn(false)} onClick={fetchFb}>Osveži</button>
                 </div>
-
-                {fbLoading ? (
-                  <div className="loading"><i className="ti ti-loader spin" /> Generišem AI sugestije...</div>
-                ) : fbSugg?.length > 0 ? (
-                  fbSugg.map((s, i) => (
-                    <div className={`fb-sugg priority-${s.priority === 'visok' ? 'high' : s.priority === 'srednji' ? 'medium' : 'low'}`} key={i}>
-                      <div className="fb-sugg-head">
-                        <i className={`ti ti-${s.icon}`} style={{ fontSize: 14, color: '#BA7517' }} />
-                        {s.title}
-                        <span className={`badge ${s.priority === 'visok' ? 'badge-red' : s.priority === 'srednji' ? 'badge-amber' : 'badge-green'}`}
-                          style={{ marginLeft: 'auto', fontSize: 10 }}>
-                          {s.priority}
-                        </span>
-                      </div>
-                      <div className="fb-sugg-body">{s.body}</div>
-                    </div>
-                  ))
-                ) : (
-                  <button className="refresh-btn" onClick={fetchFbSugg} style={{ width: '100%', justifyContent: 'center', padding: 14 }}>
-                    <i className="ti ti-sparkles" style={{ fontSize: 16 }} /> Generiši preporuke
-                  </button>
+                {fbLoading ? <div style={s.loading}>Generišem AI sugestije...</div>
+                : fbSugg?.length > 0 ? fbSugg.map((sg, i) => (
+                  <div key={i} style={s.sugg(sg.priority)}>
+                    <div style={s.suggHead}>{sg.title} <span style={s.badge(sg.priority === 'visok' ? 'amber' : 'green')}>{sg.priority}</span></div>
+                    <div style={s.suggBody}>{sg.body}</div>
+                  </div>
+                )) : (
+                  <button style={{ ...s.pbtn(true), width: '100%', padding: 14 }} onClick={fetchFb}>Generiši preporuke</button>
                 )}
               </div>
             </>
@@ -369,59 +267,40 @@ export default function Home() {
           {tab === 'adlib' && (
             <>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 3 }}>Ad Library — 30+ dana</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 3 }}>Ad Library — 30+ dana</div>
                 <div style={{ fontSize: 11, color: '#888' }}>Konkurentski oglasi igračaka aktivni u Srbiji</div>
               </div>
-
               {[
                 { name: 'BabyStore.rs — Senzorne igračke', days: 47, spend: '~35.000 RSD', reach: '28.000', format: 'Video · Reels', score: 92 },
                 { name: 'KidShop Srbija — LEGO Duplo', days: 38, spend: '~22.000 RSD', reach: '19.500', format: 'Karusel', score: 78 },
                 { name: 'IgraCenter — Plišane igračke', days: 33, spend: '~18.000 RSD', reach: '14.200', format: 'Video unboxing', score: 74 },
               ].map((a, i) => (
-                <div className="ad-card" key={i}>
-                  <div className="ad-head">
+                <div key={i} style={{ ...s.toyCard, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div>
-                      <div className="ad-name">{a.name}</div>
-                      <div className="ad-days">{a.days} dana · {a.format}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</div>
+                      <div style={{ fontSize: 11, color: '#888' }}>{a.days} dana · {a.format}</div>
                     </div>
-                    <span className={`badge ${a.score > 85 ? 'badge-green' : 'badge-blue'}`}>Aktivan</span>
+                    <span style={s.badge('green')}>Aktivan</span>
                   </div>
-                  <div className="ad-stats">
-                    <div><div className="ad-stat-label">Est. trošak</div><div className="ad-stat-val">{a.spend}</div></div>
-                    <div><div className="ad-stat-label">Doseg</div><div className="ad-stat-val">{a.reach}</div></div>
-                    <div><div className="ad-stat-label">Relevantnost</div><div className="ad-stat-val">{a.score}%</div></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                    {[['Trošak', a.spend], ['Doseg', a.reach], ['Relevantnost', a.score + '%']].map(([l, v]) => (
+                      <div key={l}><div style={{ fontSize: 10, color: '#888' }}>{l}</div><div style={{ fontSize: 13, fontWeight: 600 }}>{v}</div></div>
+                    ))}
                   </div>
-                  <div className="progress-bar"><div className="progress-fill" style={{ width: a.score + '%' }} /></div>
                 </div>
               ))}
-
-              <a
-                href="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=RS&q=igracke+deca&search_type=keyword_unordered"
-                target="_blank"
-                rel="noreferrer"
-                className="adlib-link"
-              >
-                <i className="ti ti-external-link" style={{ fontSize: 18 }} />
-                Otvori Facebook Ad Library
+              <a href="https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=RS&q=igracke+deca" target="_blank" rel="noreferrer" style={s.adLink}>
+                🔗 Otvori Facebook Ad Library
               </a>
             </>
           )}
-
         </div>
 
-        <nav className="bottom-nav">
-          {[
-            { key: 'prodaja', icon: 'ti-chart-bar', label: 'Prodaja' },
-            { key: 'igracke', icon: 'ti-gift', label: 'Igračke' },
-            { key: 'facebook', icon: 'ti-brand-facebook', label: 'Facebook' },
-            { key: 'adlib', icon: 'ti-ad', label: 'Ad Library' },
-          ].map(n => (
-            <button
-              key={n.key}
-              className={`nav-item ${tab === n.key ? 'active' : ''}`}
-              onClick={() => setTab(n.key)}
-            >
-              <i className={`ti ${n.icon}`} />
+        <nav style={s.nav}>
+          {navItems.map(n => (
+            <button key={n.key} style={s.navItem(tab === n.key)} onClick={() => setTab(n.key)}>
+              <span style={{ fontSize: 22 }}>{n.icon}</span>
               {n.label}
             </button>
           ))}
