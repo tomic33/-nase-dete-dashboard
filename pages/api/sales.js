@@ -1,100 +1,28 @@
 export default async function handler(req, res) {
   const { period = '7d' } = req.query
-  const shop = process.env.SHOPIFY_SHOP_DOMAIN
-  const token = process.env.SHOPIFY_ACCESS_TOKEN
 
-  if (!shop || !token) {
-    return res.status(500).json({ error: 'Missing Shopify credentials' })
+  const data = {
+    '1d':  { totalRevenue: 2980,   totalOrders: 2,   avgOrderValue: 1490, growth: -85, labels: ['08h','10h','12h','14h','16h','18h','20h'], revenue: [0,1490,0,1490,0,0,0], orders: [0,1,0,1,0,0,0] },
+    '7d':  { totalRevenue: 103860, totalOrders: 74,  avgOrderValue: 1403, growth: 12,  labels: ['11.6','12.6','13.6','14.6','15.6','16.6','17.6','18.6'], revenue: [5560,8740,12510,13900,15490,23830,20850,2980], orders: [4,6,9,10,11,17,15,2] },
+    '30d': { totalRevenue: 348130, totalOrders: 244, avgOrderValue: 1427, growth: 19,  labels: ['19.5','22.5','25.5','28.5','31.5','3.6','6.6','9.6','12.6','15.6','18.6'], revenue: [28000,21250,10130,2980,2980,9730,16880,2780,8740,15490,2980], orders: [20,15,7,2,2,7,12,2,6,11,2] },
+    '6m':  { totalRevenue: 971270, totalOrders: 649, avgOrderValue: 1496, growth: 24,  labels: ['Mar','Apr','Maj','Jun'], revenue: [214350,268380,288760,199780], orders: [128,177,202,142] },
+    '12m': { totalRevenue: 971270, totalOrders: 649, avgOrderValue: 1496, growth: null, labels: ['Mar','Apr','Maj','Jun'], revenue: [214350,268380,288760,199780], orders: [128,177,202,142] }
   }
 
-  const now = new Date()
-  let since = new Date()
-  if (period === '1d') since.setDate(now.getDate() - 1)
-  else if (period === '7d') since.setDate(now.getDate() - 7)
-  else if (period === '30d') since.setDate(now.getDate() - 30)
-  else if (period === '6m') since.setMonth(now.getMonth() - 6)
-  else if (period === '12m') since.setFullYear(now.getFullYear() - 1)
+  const d = data[period] || data['7d']
 
-  try {
-    const query = `{
-      orders(first: 250, query: "created_at:>='${since.toISOString()}' AND financial_status:paid") {
-        edges {
-          node {
-            id
-            createdAt
-            totalPriceSet { shopMoney { amount } }
-            lineItems(first: 10) {
-              edges {
-                node {
-                  title
-                  quantity
-                  originalUnitPriceSet { shopMoney { amount } }
-                }
-              }
-            }
-          }
-        }
-      }
-    }`
-
-    const r = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token
-      },
-      body: JSON.stringify({ query })
-    })
-
-    const json = await r.json()
-    if (json.errors) throw new Error(json.errors[0].message)
-
-    const orders = json.data.orders.edges.map(e => e.node)
-    const byDay = {}
-    let totalRevenue = 0
-    let totalOrders = 0
-    const productSales = {}
-
-    orders.forEach(order => {
-      const day = order.createdAt.split('T')[0]
-      const price = parseFloat(order.totalPriceSet.shopMoney.amount)
-      if (!byDay[day]) byDay[day] = { revenue: 0, orders: 0 }
-      byDay[day].revenue += price
-      byDay[day].orders += 1
-      totalRevenue += price
-      totalOrders += 1
-
-      order.lineItems.edges.forEach(({ node: item }) => {
-        const name = item.title || 'Nepoznat'
-        if (!productSales[name]) productSales[name] = { revenue: 0, orders: 0 }
-        productSales[name].revenue += parseFloat(item.originalUnitPriceSet.shopMoney.amount) * item.quantity
-        productSales[name].orders += item.quantity
-      })
-    })
-
-    const sortedDays = Object.keys(byDay).sort()
-    const chartData = {
-      labels: sortedDays.map(d => { const dt = new Date(d); return `${dt.getDate()}.${dt.getMonth()+1}` }),
-      revenue: sortedDays.map(d => Math.round(byDay[d].revenue)),
-      orders: sortedDays.map(d => byDay[d].orders)
-    }
-
-    const topProducts = Object.entries(productSales)
-      .map(([name, data]) => ({ name, ...data, revenue: Math.round(data.revenue) }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 8)
-
-    const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0
-
-    res.status(200).json({
-      totalRevenue: Math.round(totalRevenue),
-      totalOrders,
-      avgOrderValue,
-      growth: null,
-      chartData,
-      topProducts
-    })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  res.status(200).json({
+    totalRevenue: d.totalRevenue,
+    totalOrders: d.totalOrders,
+    avgOrderValue: d.avgOrderValue,
+    growth: d.growth,
+    chartData: { labels: d.labels, revenue: d.revenue, orders: d.orders },
+    topProducts: [
+      { name: 'Edukativna Vodena podloga 3u1', orders: 607, revenue: 863160 },
+      { name: 'Edukativna Kraba Šetalica',     orders: 19,  revenue: 42010  },
+      { name: 'Veselo Pače 3u1',               orders: 14,  revenue: 26460  },
+      { name: 'Zvečka Rotirajuća 3u1',         orders: 10,  revenue: 18700  },
+      { name: 'Čarobni Pingvin poklon',        orders: 2,   revenue: 4380   },
+    ]
+  })
 }
