@@ -45,7 +45,7 @@ export default function Home() {
   const fetchToys = useCallback(async () => {
     setToysLoading(true)
     try {
-      const res = await fetch('/api/toys')
+      const res = await fetch('/api/toys?t=' + Date.now())
       const data = await res.json()
       setToys(data)
     } catch (e) {}
@@ -56,7 +56,7 @@ export default function Home() {
     setFbLoading(true)
     try {
       const body = sales ? { revenue: sales.totalRevenue, topProduct: sales.topProducts?.[0]?.name, orders: sales.totalOrders, growth: sales.growth } : {}
-      const res = await fetch('/api/fb-suggestions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res = await fetch('/api/fb-suggestions?t=' + Date.now(),
       const data = await res.json()
       setFbSugg(data.suggestions)
     } catch (e) {}
