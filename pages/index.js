@@ -1,12 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Head from 'next/head'
-import {
-  Chart as ChartJS,
-  CategoryScale, LinearScale, BarElement, LineElement,
-  PointElement, Title, Tooltip, Legend, Filler
-} from 'chart.js'
+import dynamic from 'next/dynamic'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { Bar, Line } from 'react-chartjs-2'
-
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler)
 
 const PERIODS = [
