@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   try {
     const ordersRes = await fetch(
       `https://${shop}/admin/api/2024-01/orders.json?status=any&created_at_min=${since.toISOString()}&limit=250&fields=id,created_at,total_price,financial_status,line_items`,
-      { headers: { 'X-Shopify-Access-Token': token } }
+      { headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' } }
     )
 
     if (!ordersRes.ok) throw new Error(`Shopify API error: ${ordersRes.status}`)
